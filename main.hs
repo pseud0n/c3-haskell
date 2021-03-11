@@ -1,31 +1,8 @@
 
 import Data.List ( find )
-import Data.Map ( Map )
-import qualified Data.Map as Map
 import Data.Maybe ( isNothing )
 
 type Ptr = Char
-
-{-
-
-memoized_fib :: Int -> Integer
-memoized_fib = (map fib [0 ..] !!)
-   where fib 0 = 0
-         fib 1 = 1
-         fib n = memoized_fib (n-2) + memoized_fib (n-1)
-
--}
-
-data Tree a = Tree ( Tree a ) a ( Tree a )
-instance Functor Tree where
-    fmap f (Tree left_tree node_value right_tree) = Tree (fmap f left_tree) (f node_value) (fmap f right_tree)
-
-tree_value :: Tree a -> Int -> a
-tree_value ( Tree _ node_value _ ) 0 = node_value -- If depth == 0, get current value
-tree_value ( Tree left_tree _ right_tree ) n = -- If > 0
-    case divMod ( n - 1 ) 2 of
-    (quotient, 0) -> tree_value left_tree quotient -- Even
-    (quotient, 1) -> tree_value left_tree quotient -- Odd
 
 tail' :: [ Ptr ]  -> [ Ptr ] 
 tail' [ el ]  = [ el ] -- modified so that tail of single-element-list is that same list, not empty
@@ -34,11 +11,7 @@ tail' xs = tail xs;
 
 el_not_in_tails :: Ptr -> [ [ Ptr ]  ]  -> Bool
 el_not_in_tails el list = not $ any ( elem el ) ( map tail' list )
-
-first_element :: [ [ Ptr ] ] -> Ptr
-first_element [] = error "Can't operate on empty list"
-first_element (h:_) = head h
--- ["ABC", "D", "EF] -> 'A'
+-- None of the tails of list contain el
 
 dequeue_if :: Ptr -> [ Ptr ]  -> [ Ptr ] 
 dequeue_if _ [ ]  = [ ] 
@@ -49,18 +22,12 @@ dequeue_if el ( h:t ) = if ( h == el ) then t else h:t
 
 dequeue_delete_list_if :: Ptr -> [ [ Ptr ] ] -> [ [ Ptr ] ]
 dequeue_delete_list_if _ [ ] = [ ]
-dequeue_delete_list_if el ( h:t ) = (if (null dequeued) then [ ] else [ dequeued ]) ++ dequeue_delete_list_if el t
+dequeue_delete_list_if el ( h:t ) =
+  (if (null dequeued) then [ ] else [ dequeued ]) ++ dequeue_delete_list_if el t
   where dequeued = dequeue_if el h
 
 unsafe_just :: Maybe a -> a
 unsafe_just (Just x) = x
-unsafe_just Nothing = error "Could not resolve consistent linearisation"
-
-{-
-removal_pass :: ( [ Ptr ] , [ [ Ptr ]  ] ) -> ( [ Ptr ] , [ [ Ptr ]  ] )
-removal_pass ( chosen, unchosen ) = (chosen ++ [ fst_match_head ] , map ( dequeue_if fst_match_head ) unchosen)
-    where fst_match_head = head $ unsafe_just $ find ( ( flip el_not_in_tails unchosen ) . head ) unchosen
--}
 
 unique_concat :: [ [ Ptr ] ] -> [ Ptr ]
 unique_concat [ ] = [ ]
@@ -69,8 +36,15 @@ unique_concat ( h:t ) = element_to_remove : (unique_concat $ dequeue_delete_list
 -- E.g. ["A", "AB", "AC"] -> ["B", "C"] -> ["C"] -> [] giving "ABC"
 
 removal_pass :: ( [ Ptr ] , [ [ Ptr ]  ] ) -> ( [ Ptr ] , [ [ Ptr ]  ] )
-removal_pass ( chosen, unchosen ) = if (isNothing fst_match_maybe) then (chosen ++ unique_concat unchosen, [ ]) else (chosen ++ [ head $ unsafe_just $ fst_match_maybe ] , map ( dequeue_if $ head $ unsafe_just $ fst_match_maybe ) unchosen)
+removal_pass ( chosen, unchosen ) =
+  if (isNothing fst_match_maybe)
+    then (chosen ++ unique_concat unchosen, [ ])
+    else let fst_match_h = head $ unsafe_just $ fst_match_maybe in
+      (chosen ++ [ fst_match_h ] , map ( dequeue_if $ fst_match_h ) unchosen)
   where fst_match_maybe = find ( ( flip el_not_in_tails unchosen ) . head ) unchosen
+-- el_not_in_tails: arg1 is not in any tails of arg2
+-- flip el_not_in_tails:  arg2 is not in any tails of arg1-
+-- flip el_not_in_tails unchosen: function taking a single argument and determines whether it's in any of the tails of unchosen
 
 all_passes :: ( [ Ptr ] , [ [ Ptr ]  ] ) -> ( [ Ptr ] , [ [ Ptr ]  ] )
 all_passes ( chosen, unchosen ) =
@@ -80,24 +54,23 @@ all_passes ( chosen, unchosen ) =
 linearise :: [ [ Ptr ] ] -> [ Ptr ]
 linearise list = fst $ all_passes ( [ ], list )
 
+data LinkedList a = Link a (LinkedList a) 
+                | Nil deriving (Show, Eq)
 {-
-removal_pass_ :: (Ptr, [ [ Ptr ]  ] ) -> [ [ Ptr ]  ]  -> (Ptr, [ [ Ptr ]  ] )
-removal_pass_ (chosen, )
--}
-{-
-class O
-class A extends O
-class B extends O
-class C extends O
-class D extends O
-class E extends O
-class K1 extends A, B, C
-class K2 extends D, B, E
-class K3 extends D, A
-class Z extends K1, K2, K3
+class O : O
+class A extends O : AO
+class B extends O : CO
+class C extends O : CO
+class D extends O : DO
+class E extends O : EO
+class F extends A, B, C : FABCO
+class G extends D, B, E : GBEO
+class H extends D, A : HDAO
+class I extends F, G, H : IFGHDABCEO
 -}
 
 main = do
+{-
   let lists = [ "AO", "BO", "CO", "DO", "EO" ] 
   let memoised = Map.empty
   print $ lists
@@ -111,6 +84,9 @@ main = do
   print $ concat $ snd pass
   let left = ["O", "OB", "A", "O"]
   print $ dequeue_delete_list_if 'O' $ left
-  print $ first_element left
-  print $ unique_concat left
   print $ all_passes ( [ ], lists )
+-}
+  --let lists = (Link 10 (Link 99 (Link 11 (Link 1 Nil))))
+  let mros = [ "FABCO", "GDBEO", "HDAO" ]
+  print $ 'I' : linearise mros
+  
